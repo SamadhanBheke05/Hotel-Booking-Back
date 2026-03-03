@@ -31,11 +31,12 @@ const envOrigins = (process.env.CORS_ORIGINS || "")
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
-const allowedOrigins = [...new Set([...defaultOrigins, ...envOrigins])];
+const normalizeOrigin = (origin) => origin.replace(/\/$/, "");
+const allowedOrigins = [...new Set([...defaultOrigins, ...envOrigins].map(normalizeOrigin))];
 
 app.use(cors({
     origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) {
+        if (!origin || allowedOrigins.includes(normalizeOrigin(origin))) {
             return callback(null, true);
         }
         return callback(new Error("Not allowed by CORS"));
