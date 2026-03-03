@@ -61,6 +61,7 @@ const PORT = process.env.PORT || 5000;
 app.use("/images", express.static("uploads"));
 
 app.use("/api/user", userRouter);
+app.use("/api/users", userRouter);
 app.use("/api/hotel", hotelRouter);
 app.use("/api/room", roomRouter);
 app.use("/api/bookings", bookingRouter);

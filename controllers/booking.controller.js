@@ -11,8 +11,9 @@ export const checkAvailability = async ({ room, checkInDate, checkOutDate }) => 
     try {
         const booking = await Booking.find({
             room,
-            checkInDate: { $lte: checkOutDate },
-            checkOutDate: { $gte: checkInDate },
+            checkIn: { $lte: checkOutDate },
+            checkOut: { $gte: checkInDate },
+            status: { $ne: "cancelled" },
         });
 
         const isAvailable = booking.length === 0;
@@ -79,25 +80,29 @@ export const bookRoom = async (req, res) => {
             paymentMethod,
         });
 
-        try {
-            await sendBookingConfirmationEmail({
-                email: user.email,
-                name: user.name,
-                bookingId: booking._id,
-                hotelName: roomData.hotel.hotelName,
-                roomType: roomData.roomType,
-                checkInDate,
-                checkOutDate,
-                persons,
-                totalPrice,
-                currency: process.env.CURRENCY || "Rs",
-            });
-        } catch (emailError) {
-            console.error("EMAIL_SEND_ERROR:", emailError);
-            // Don't fail the booking if email fails, just log it
-        }
-
         res.json({ success: true, message: "Room Booked Successfully" });
+
+        // Send email in background so booking response is not delayed by SMTP/network latency.
+        if (user?.email) {
+            setImmediate(async () => {
+                try {
+                    await sendBookingConfirmationEmail({
+                        email: user.email,
+                        name: user.name,
+                        bookingId: booking._id,
+                        hotelName: roomData.hotel.hotelName,
+                        roomType: roomData.roomType,
+                        checkInDate,
+                        checkOutDate,
+                        persons,
+                        totalPrice,
+                        currency: process.env.CURRENCY || "Rs",
+                    });
+                } catch (emailError) {
+                    console.error("EMAIL_SEND_ERROR:", emailError);
+                }
+            });
+        }
     } catch (error) {
         console.error("BOOKING_ERROR:", error); // Log the actual error
         res.status(500).json({ message: "Internal server error" });

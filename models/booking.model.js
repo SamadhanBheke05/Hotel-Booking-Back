@@ -82,5 +82,8 @@ const bookingSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Speeds up room/date overlap lookups used during availability checks.
+bookingSchema.index({ room: 1, checkIn: 1, checkOut: 1, status: 1 });
+
 const Booking = mongoose.model("Booking", bookingSchema);
 export default Booking;
