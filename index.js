@@ -26,7 +26,11 @@ connectDB();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const defaultOrigins = ["http://localhost:5173", "http://localhost:5174"];
+const defaultOrigins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "https://hotel-booking-frontend-equi.onrender.com",
+];
 const envOrigins = (process.env.CORS_ORIGINS || "")
     .split(",")
     .map((origin) => origin.trim())
