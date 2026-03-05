@@ -22,7 +22,9 @@ app.set("trust proxy", 1);
 
 // DB
 connectDB();
-verifyEmailTransport();
+if (String(process.env.VERIFY_EMAIL_ON_BOOT || "false").toLowerCase() === "true") {
+    verifyEmailTransport();
+}
 
 // Middlewares
 app.use(express.json());
