@@ -3,10 +3,10 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.error("EMAIL_USER or EMAIL_PASS not found in environment variables");
-    console.error("Please check your backend .env file");
-}
+const emailUser = process.env.EMAIL_USER || "";
+const emailPass = (process.env.EMAIL_PASS || "").replace(/\s+/g, "");
+const resendApiKey = process.env.RESEND_API_KEY || "";
+const resendFrom = process.env.EMAIL_FROM || emailUser;
 
 const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
 const smtpPort = Number(process.env.SMTP_PORT || 587);
@@ -21,55 +21,102 @@ const transporter = nodemailer.createTransport({
     greetingTimeout: 20000,
     socketTimeout: 30000,
     auth: {
-        user: process.env.EMAIL_USER,
-        pass: (process.env.EMAIL_PASS || "").replace(/\s+/g, ""),
+        user: emailUser,
+        pass: emailPass,
     },
 });
 
-transporter.verify((error) => {
-    if (error) {
-        console.error("Email transporter verification failed:", error);
-        console.error("Use a Gmail app password and ensure 2FA is enabled.");
-    } else {
-        console.log("Email server is ready to send messages");
+const sendViaResend = async ({ to, subject, html }) => {
+    const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${resendApiKey}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            from: resendFrom,
+            to: [to],
+            subject,
+            html,
+        }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(
+            `Resend API failed (${response.status}): ${JSON.stringify(data)}`
+        );
     }
-});
+
+    return data;
+};
+
+const sendViaSmtp = async ({ to, subject, html }) => {
+    const info = await transporter.sendMail({
+        from: `Hotel Booking <${emailUser}>`,
+        to,
+        subject,
+        html,
+    });
+
+    const accepted = Array.isArray(info.accepted) ? info.accepted : [];
+    const rejected = Array.isArray(info.rejected) ? info.rejected : [];
+    if (!accepted.length || rejected.length) {
+        throw new Error(
+            `SMTP mail not delivered. accepted=${accepted.join(",")} rejected=${rejected.join(",")}`
+        );
+    }
+    return info;
+};
+
+const sendEmail = async ({ to, subject, html }) => {
+    // Prefer HTTPS provider in production runtime (avoids SMTP connection timeouts).
+    if (resendApiKey) {
+        return sendViaResend({ to, subject, html });
+    }
+    if (!emailUser || !emailPass) {
+        throw new Error(
+            "Email credentials missing: set RESEND_API_KEY (recommended) or EMAIL_USER/EMAIL_PASS"
+        );
+    }
+    return sendViaSmtp({ to, subject, html });
+};
 
 export const verifyEmailTransport = async () => {
     try {
+        if (resendApiKey) {
+            console.log(`EMAIL_OK mode=resend from=${resendFrom}`);
+            return;
+        }
+
         await transporter.verify();
         console.log(
-            `EMAIL_OK host=${smtpHost} port=${smtpPort} secure=${smtpSecure} user=${process.env.EMAIL_USER || "missing"}`
+            `EMAIL_OK mode=smtp host=${smtpHost} port=${smtpPort} secure=${smtpSecure} user=${emailUser || "missing"}`
         );
     } catch (error) {
-        console.error(
-            `EMAIL_FAIL host=${smtpHost} port=${smtpPort} secure=${smtpSecure}`,
-            error?.message || error
-        );
+        if (resendApiKey) {
+            console.error("EMAIL_FAIL mode=resend", error?.message || error);
+        } else {
+            console.error(
+                `EMAIL_FAIL mode=smtp host=${smtpHost} port=${smtpPort} secure=${smtpSecure}`,
+                error?.message || error
+            );
+        }
     }
 };
 
 export const sendOTPEmail = async (email, otp) => {
     try {
-        const info = await transporter.sendMail({
-            from: `Hotel Booking <${process.env.EMAIL_USER}>`,
+        const html = `
+            <h2>Your OTP is: ${otp}</h2>
+            <p>This OTP expires in 5 minutes.</p>
+        `;
+        const result = await sendEmail({
             to: email,
             subject: "Email Verification OTP",
-            html: `
-                <h2>Your OTP is: ${otp}</h2>
-                <p>This OTP expires in 5 minutes.</p>
-            `,
+            html,
         });
-
-        const accepted = Array.isArray(info.accepted) ? info.accepted : [];
-        const rejected = Array.isArray(info.rejected) ? info.rejected : [];
-        if (!accepted.length || rejected.length) {
-            throw new Error(
-                `Mail not delivered. accepted=${accepted.join(",")} rejected=${rejected.join(",")}`
-            );
-        }
-
-        console.log(`OTP email sent successfully to ${email}. messageId=${info.messageId}`);
+        console.log("OTP email sent successfully", result?.id || "");
     } catch (error) {
         console.error("Failed to send OTP email:", error);
         throw error;
@@ -88,8 +135,7 @@ export const sendBookingConfirmationEmail = async ({
     totalPrice,
     currency = "Rs",
 }) => {
-    await transporter.sendMail({
-        from: `Hotel Booking <${process.env.EMAIL_USER}>`,
+    await sendEmail({
         to: email,
         subject: "Room Booking Confirmation",
         html: `
@@ -122,8 +168,7 @@ export const sendGroupBookingConfirmationEmail = async ({
     totalPrice,
     currency = "Rs",
 }) => {
-    await transporter.sendMail({
-        from: `Hotel Booking <${process.env.EMAIL_USER}>`,
+    await sendEmail({
         to: email,
         subject: "Group Booking Confirmation",
         html: `
