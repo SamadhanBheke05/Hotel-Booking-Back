@@ -89,12 +89,16 @@ export const singup = async (req, res) => {
       return res.json({
         message: "OTP sent to your email",
         success: true,
+        otpSent: true,
       });
     } catch (mailError) {
       console.error("OTP Email Error:", mailError);
-      return res.status(500).json({
-        message: "Unable to send OTP email. Please verify email config and try again.",
-        success: false,
+      // Do not block navigation to OTP page; user can retry signup to generate a new OTP.
+      return res.json({
+        message:
+          "OTP generated, but email delivery failed. Please check email config and try signup again.",
+        success: true,
+        otpSent: false,
       });
     }
   } catch (error) {

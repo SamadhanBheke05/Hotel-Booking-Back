@@ -8,10 +8,18 @@ if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
     console.error("Please check your backend .env file");
 }
 
+const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
+const smtpPort = Number(process.env.SMTP_PORT || 587);
+const smtpSecure = String(process.env.SMTP_SECURE || "false").toLowerCase() === "true";
+
 const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 465,
-    secure: true,
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpSecure,
+    requireTLS: !smtpSecure,
+    connectionTimeout: 20000,
+    greetingTimeout: 20000,
+    socketTimeout: 30000,
     auth: {
         user: process.env.EMAIL_USER,
         pass: (process.env.EMAIL_PASS || "").replace(/\s+/g, ""),
@@ -30,9 +38,14 @@ transporter.verify((error) => {
 export const verifyEmailTransport = async () => {
     try {
         await transporter.verify();
-        console.log(`EMAIL_OK user=${process.env.EMAIL_USER || "missing"}`);
+        console.log(
+            `EMAIL_OK host=${smtpHost} port=${smtpPort} secure=${smtpSecure} user=${process.env.EMAIL_USER || "missing"}`
+        );
     } catch (error) {
-        console.error("EMAIL_FAIL", error?.message || error);
+        console.error(
+            `EMAIL_FAIL host=${smtpHost} port=${smtpPort} secure=${smtpSecure}`,
+            error?.message || error
+        );
     }
 };
 
