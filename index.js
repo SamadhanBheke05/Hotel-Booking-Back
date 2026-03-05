@@ -12,6 +12,7 @@ import bookingRouter from "./routes/booking.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
 import ownerRoutes from "./routes/owner.routes.js";
 import reviewRouter from "./routes/review.routes.js";
+import { verifyEmailTransport } from "./utils/sendEmail.js";
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ app.set("trust proxy", 1);
 
 // DB
 connectDB();
+verifyEmailTransport();
 
 // Middlewares
 app.use(express.json());

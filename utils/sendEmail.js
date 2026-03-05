@@ -27,6 +27,15 @@ transporter.verify((error) => {
     }
 });
 
+export const verifyEmailTransport = async () => {
+    try {
+        await transporter.verify();
+        console.log(`EMAIL_OK user=${process.env.EMAIL_USER || "missing"}`);
+    } catch (error) {
+        console.error("EMAIL_FAIL", error?.message || error);
+    }
+};
+
 export const sendOTPEmail = async (email, otp) => {
     try {
         const info = await transporter.sendMail({
