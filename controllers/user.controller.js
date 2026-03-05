@@ -84,24 +84,19 @@ export const singup = async (req, res) => {
       otpExpiry: Date.now() + 5 * 60 * 1000, // 5 minutes
     });
 
-    // send OTP email (REAL-TIME)
-    try {
-      await sendOTPEmail(email, otp);
-      return res.json({
-        message: "OTP sent to your email",
-        success: true,
+    // Respond immediately so frontend can navigate without waiting for mail provider latency.
+    sendOTPEmail(email, otp)
+      .then(() => {
+        console.log(`OTP dispatch queued for ${email}`);
+      })
+      .catch((mailError) => {
+        console.error("OTP Email Error:", mailError);
       });
-    } catch (mailError) {
-      console.error("OTP Email Error:", mailError);
 
-      // Never block signup flow because of email provider issues.
-      return res.json({
-        message:
-          "OTP generated, but email delivery failed. Please use resend OTP or contact support.",
-        success: true,
-        otpSent: false,
-      });
-    }
+    return res.json({
+      message: "OTP generated. Please check your email.",
+      success: true,
+    });
   } catch (error) {
     console.error("Signup Error:", error);
     return res.status(500).json({
