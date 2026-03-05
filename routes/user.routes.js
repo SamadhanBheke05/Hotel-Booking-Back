@@ -4,6 +4,7 @@ import {
     isAuth,
     login,
     logout,
+    resendOTP,
     singup,
     verifyOTP
 } from "../controllers/user.controller.js";
@@ -15,6 +16,7 @@ const userRouter = express.Router();
 
 userRouter.post("/signup", singup);
 userRouter.post("/verify-otp", verifyOTP);
+userRouter.post("/resend-otp", resendOTP);
 userRouter.post("/login", login);
 
 userRouter.get("/is-auth", authMiddleware, isAuth);

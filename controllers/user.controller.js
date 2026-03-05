@@ -93,9 +93,11 @@ export const singup = async (req, res) => {
         console.error("OTP Email Error:", mailError);
       });
 
+    const isProduction = process.env.NODE_ENV === "production";
     return res.json({
       message: "OTP generated. Please check your email.",
       success: true,
+      ...(isProduction ? {} : { devOtp: otp }),
     });
   } catch (error) {
     console.error("Signup Error:", error);
@@ -159,6 +161,57 @@ export const verifyOTP = async (req, res) => {
     return res.status(500).json({
       message: "Internal server error",
       success: false,
+    });
+  }
+};
+
+/* ===============================
+   RESEND OTP FOR PENDING SIGNUP
+================================ */
+export const resendOTP = async (req, res) => {
+  try {
+    const email = (req.body.email || "").trim().toLowerCase();
+
+    if (!email) {
+      return res.status(400).json({
+        message: "Email is required",
+        success: false,
+      });
+    }
+
+    const tempUser = await TempUser.findOne({ email });
+    if (!tempUser) {
+      return res.status(404).json({
+        message: "Signup session not found. Please sign up again.",
+        success: false,
+      });
+    }
+
+    const otp = otpGenerator.generate(6, {
+      upperCaseAlphabets: false,
+      specialChars: false,
+      lowerCaseAlphabets: false,
+    });
+
+    tempUser.otp = otp;
+    tempUser.otpExpiry = Date.now() + 5 * 60 * 1000;
+    await tempUser.save();
+
+    await sendOTPEmail(email, otp);
+
+    const isProduction = process.env.NODE_ENV === "production";
+    return res.json({
+      message: "New OTP sent to your email",
+      success: true,
+      ...(isProduction ? {} : { devOtp: otp }),
+    });
+  } catch (error) {
+    console.error("Resend OTP Error:", error);
+    const isProduction = process.env.NODE_ENV === "production";
+    return res.status(500).json({
+      message: "Failed to send OTP. Please try again in a moment.",
+      success: false,
+      ...(isProduction ? {} : { devHint: "Check backend console logs for SMTP error" }),
     });
   }
 };
