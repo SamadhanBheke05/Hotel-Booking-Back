@@ -13,6 +13,8 @@ const isStrongPassword = (password) => {
   return regex.test(password);
 };
 
+const bcryptRounds = Math.max(6, Number(process.env.BCRYPT_SALT_ROUNDS || 8));
+
 /* ===============================
    SIGNUP → SEND OTP (NO USER CREATED)
 ================================ */
@@ -62,7 +64,7 @@ export const singup = async (req, res) => {
     }
 
     // hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, bcryptRounds);
 
     // generate OTP
     const otp = otpGenerator.generate(6, {
@@ -71,18 +73,19 @@ export const singup = async (req, res) => {
       lowerCaseAlphabets: false
     });
 
-    // remove old temp user if exists
-    await TempUser.deleteMany({ email });
-
-    // save temp user
-    await TempUser.create({
-      name,
-      email,
-      password: hashedPassword,
-      role,
-      otp,
-      otpExpiry: Date.now() + 5 * 60 * 1000, // 5 minutes
-    });
+    // Upsert temp user in one query to keep signup fast and avoid duplicate temp docs.
+    await TempUser.findOneAndUpdate(
+      { email },
+      {
+        name,
+        email,
+        password: hashedPassword,
+        role,
+        otp,
+        otpExpiry: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 
     // Respond first so signup->OTP page redirect is not blocked by SMTP/network latency.
     res.json({
@@ -92,8 +95,10 @@ export const singup = async (req, res) => {
     });
 
     // Send OTP in background (best effort).
-    sendOTPEmail(email, otp).catch((mailError) => {
-      console.error("OTP Email Error (background):", mailError);
+    setImmediate(() => {
+      sendOTPEmail(email, otp).catch((mailError) => {
+        console.error("OTP Email Error (background):", mailError);
+      });
     });
     return;
   } catch (error) {
@@ -116,6 +121,13 @@ export const verifyOTP = async (req, res) => {
     if (!email || !otp) {
       return res.status(400).json({
         message: "Email and OTP are required",
+        success: false,
+      });
+    }
+
+    if (!/^\d{6}$/.test(otp)) {
+      return res.status(400).json({
+        message: "OTP must be a 6-digit number",
         success: false,
       });
     }
@@ -257,9 +269,23 @@ export const logout = async (req, res) => {
 ================================ */
 export const isAuth = async (req, res) => {
   try {
-    const { id } = req.user;
+    const userId = req.user?.id || req.user?._id;
+    if (!userId) {
+      return res.status(200).json({
+        success: false,
+        user: null,
+        message: "Not authenticated",
+      });
+    }
 
-    const user = await User.findById(id).select("-password");
+    const user = await User.findById(userId).select("-password");
+    if (!user) {
+      return res.status(200).json({
+        success: false,
+        user: null,
+        message: "Not authenticated",
+      });
+    }
 
     return res.json({
       success: true,

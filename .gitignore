@@ -1,0 +1,5 @@
+node_modules/
+.env
+uploads/
+debug_start.log
+debug_success.log

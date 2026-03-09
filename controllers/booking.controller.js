@@ -39,8 +39,8 @@ export const checkRoomAvailability = async (req, res) => {
 //api to book a room
 export const bookRoom = async (req, res) => {
     try {
-        const { id } = req.user;
-        const user = await User.findById(id);
+        const userId = req.user?.id || req.user?._id;
+        const user = await User.findById(userId);
         const { room, checkInDate, checkOutDate, persons, paymentMethod } = req.body;
 
         //before booking chcek availability
@@ -70,7 +70,7 @@ export const bookRoom = async (req, res) => {
 
 
         const booking = await Booking.create({
-            user: id,
+            user: userId,
             room,
             hotel: roomData.hotel._id,
             checkIn,
@@ -86,7 +86,7 @@ export const bookRoom = async (req, res) => {
         if (user?.email) {
             setImmediate(async () => {
                 try {
-                    await sendBookingConfirmationEmail({
+                    const info = await sendBookingConfirmationEmail({
                         email: user.email,
                         name: user.name,
                         bookingId: booking._id,
@@ -98,6 +98,7 @@ export const bookRoom = async (req, res) => {
                         totalPrice,
                         currency: process.env.CURRENCY || "Rs",
                     });
+                    console.log(`BOOKING_EMAIL_SENT bookingId=${booking._id} to=${user.email} messageId=${info?.messageId || "n/a"}`);
                 } catch (emailError) {
                     console.error("EMAIL_SEND_ERROR:", emailError);
                 }
@@ -151,7 +152,7 @@ export const getHotelBookings = async (req, res) => {
 ================================ */
 export const createGroupBooking = async (req, res) => {
     try {
-        const { id } = req.user;
+        const userId = req.user?.id || req.user?._id;
         const { hotelId, roomIds, leaderName, totalMembers, checkInDate, checkOutDate } = req.body;
 
         if (!hotelId || !roomIds || !Array.isArray(roomIds) || roomIds.length === 0) {
@@ -215,7 +216,7 @@ export const createGroupBooking = async (req, res) => {
 
         // Create group booking (use first room in the top-level `room` field for backward compat)
         const booking = await Booking.create({
-            user: id,
+            user: userId,
             hotel: hotelId,
             room: roomIds[0],
             checkIn,
@@ -232,10 +233,10 @@ export const createGroupBooking = async (req, res) => {
         });
 
         // Send confirmation email (best effort)
-        const user = await User.findById(id);
+        const user = await User.findById(userId);
         if (user) {
             try {
-                await sendGroupBookingConfirmationEmail({
+                const info = await sendGroupBookingConfirmationEmail({
                     email: user.email,
                     name: user.name,
                     groupCode,
@@ -248,6 +249,7 @@ export const createGroupBooking = async (req, res) => {
                     totalPrice,
                     currency: process.env.CURRENCY || "Rs",
                 });
+                console.log(`GROUP_BOOKING_EMAIL_SENT bookingId=${booking._id} to=${user.email} messageId=${info?.messageId || "n/a"}`);
             } catch (emailErr) {
                 console.error("GROUP_BOOKING_EMAIL_ERROR:", emailErr);
             }

@@ -42,10 +42,15 @@ const envOrigins = (process.env.CORS_ORIGINS || "")
 const normalizeOrigin = (origin) => origin.replace(/\/$/, "");
 const allowedOrigins = [...new Set([...defaultOrigins, ...envOrigins].map(normalizeOrigin))];
 const localDevOriginRegex = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/i;
+const renderOriginRegex = /^https:\/\/[a-z0-9-]+\.onrender\.com$/i;
 const isAllowedOrigin = (origin) => {
     if (!origin) return true;
     const normalized = normalizeOrigin(origin);
-    return allowedOrigins.includes(normalized) || localDevOriginRegex.test(normalized);
+    return (
+        allowedOrigins.includes(normalized) ||
+        localDevOriginRegex.test(normalized) ||
+        renderOriginRegex.test(normalized)
+    );
 };
 
 app.use(cors({
@@ -53,6 +58,7 @@ app.use(cors({
         if (isAllowedOrigin(origin)) {
             return callback(null, true);
         }
+        console.error(`CORS_BLOCKED origin=${origin || "unknown"}`);
         return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
@@ -78,6 +84,30 @@ app.use("/api/bookings", bookingRouter);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/owner", ownerRoutes);
 app.use("/api/reviews", reviewRouter);
+
+app.use((err, req, res, next) => {
+    if (!err) return next();
+
+    if (err.name === "MulterError") {
+        return res.status(400).json({
+            success: false,
+            message: err.message || "File upload error",
+        });
+    }
+
+    if (err.message === "Only image files are allowed") {
+        return res.status(400).json({
+            success: false,
+            message: err.message,
+        });
+    }
+
+    console.error("UNHANDLED_ERROR:", err);
+    return res.status(500).json({
+        success: false,
+        message: "Internal server error",
+    });
+});
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

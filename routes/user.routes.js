@@ -17,7 +17,11 @@ userRouter.post("/signup", singup);
 userRouter.post("/verify-otp", verifyOTP);
 userRouter.post("/login", login);
 
-userRouter.get("/is-auth", authMiddleware, isAuth);
+userRouter.get("/is-auth", (req, res, next) => {
+    const token = req.cookies?.token;
+    if (!token) return isAuth(req, res);
+    return authMiddleware(req, res, next);
+}, isAuth);
 userRouter.get("/logout", authMiddleware, logout);
 
 export default userRouter;

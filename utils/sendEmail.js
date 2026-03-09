@@ -91,7 +91,7 @@ export const sendBookingConfirmationEmail = async ({
     totalPrice,
     currency = "Rs",
 }) => {
-    await sendEmail({
+    return sendEmail({
         to: email,
         subject: "Room Booking Confirmation",
         html: `
@@ -124,7 +124,7 @@ export const sendGroupBookingConfirmationEmail = async ({
     totalPrice,
     currency = "Rs",
 }) => {
-    await sendEmail({
+    return sendEmail({
         to: email,
         subject: "Group Booking Confirmation",
         html: `

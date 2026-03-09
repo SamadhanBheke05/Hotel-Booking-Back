@@ -3,7 +3,6 @@ import mongoose from "mongoose"
 const hotelSchema = new mongoose.Schema({
     hotelName: { type: String, required: true },
     hotelAddress: { type: String, required: true },
-    location: { type: String, required: true }, // Google Maps Link
     rating: { type: String, required: true },
     price: { type: String, required: true },
     amenities: { type: String, required: true },
