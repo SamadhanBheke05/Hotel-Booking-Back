@@ -33,7 +33,7 @@ app.use(express.urlencoded({ extended: true }));
 const defaultOrigins = [
     "http://localhost:5173",
     "http://localhost:5174",
-    "https://hotel-booking-frontend-equi.onrender.com",
+    "https://hotel-booking-frontend-scnq.onrender.com",
 ];
 const envOrigins = (process.env.CORS_ORIGINS || "")
     .split(",")
