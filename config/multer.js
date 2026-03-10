@@ -1,11 +1,6 @@
 import multer from "multer";
-import { v2 as cloudinary } from "cloudinary";
 import dotenv from "dotenv";
 dotenv.config();
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-});
 
 // Use memory storage — files are uploaded to Cloudinary in the controller
 const storage = multer.memoryStorage();
@@ -21,23 +16,30 @@ const fileFilter = (req, file, cb) => {
 export const upload = multer({ storage, fileFilter });
 
 /**
- * Upload a single file buffer to Cloudinary using an unsigned preset.
+ * Upload a single file buffer to Cloudinary using an unsigned preset (no API key needed).
+ * Uses the Cloudinary REST API directly via fetch.
  * Returns the secure_url string.
  */
-export const uploadToCloudinary = (fileBuffer, mimetype) => {
+export const uploadToCloudinary = async (fileBuffer, mimetype) => {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || "df5xvr5ow";
   const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET || "hotel_unsigned_upload";
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder: "hotel_booking",
-        upload_preset: uploadPreset,
-        resource_type: "image",
-      },
-      (error, result) => {
-        if (error) return reject(error);
-        resolve(result.secure_url);
-      }
-    );
-    stream.end(fileBuffer);
-  });
+
+  const formData = new FormData();
+  const blob = new Blob([fileBuffer], { type: mimetype });
+  formData.append("file", blob);
+  formData.append("upload_preset", uploadPreset);
+  formData.append("folder", "hotel_booking");
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+    { method: "POST", body: formData }
+  );
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Cloudinary upload failed: ${err}`);
+  }
+
+  const data = await response.json();
+  return data.secure_url;
 };
