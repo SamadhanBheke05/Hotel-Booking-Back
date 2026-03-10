@@ -2,6 +2,8 @@ import express from "express"
 import cors from "cors"
 import cookieParser from "cookie-parser"
 import dotenv from "dotenv"
+import path from "path"
+import { fileURLToPath } from "url"
 
 import { connectDB } from "./config/connectDB.js";
 
@@ -19,6 +21,11 @@ dotenv.config();
 const app = express();
 
 app.set("trust proxy", 1);
+
+// Static uploads (legacy support for previously stored local images)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // DB
 connectDB();
