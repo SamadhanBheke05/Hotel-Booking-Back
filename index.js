@@ -74,7 +74,7 @@ app.get("/", (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.use("/images", express.static("uploads"));
+// Images are now served from Cloudinary (persistent storage)
 
 app.use("/api/user", userRouter);
 app.use("/api/users", userRouter);

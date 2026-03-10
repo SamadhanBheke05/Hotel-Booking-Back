@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Hotel from "../models/hotel.model.js";
 import Room from "../models/room.model.js";
+import { uploadToCloudinary } from "../config/multer.js";
 
 // add a new room
 export const addRoom = async (req, res) => {
@@ -15,8 +16,9 @@ export const addRoom = async (req, res) => {
             rating,
         } = req.body;
 
+        // Upload each file buffer to Cloudinary and collect secure URLs
         const images = req.files && req.files.length > 0
-            ? req.files.map((file) => file.filename)
+            ? await Promise.all(req.files.map((file) => uploadToCloudinary(file.buffer, file.mimetype)))
             : [];
 
         if (!hotel || !mongoose.Types.ObjectId.isValid(hotel)) {
@@ -214,11 +216,10 @@ export const updateRoom = async (req, res) => {
 
         room.hotel = targetHotelId;
 
-        const uploadedImages = req.files && req.files.length > 0
-            ? req.files.map((file) => file.filename)
-            : [];
-        if (uploadedImages.length > 0) {
-            room.images = uploadedImages;
+        if (req.files && req.files.length > 0) {
+            room.images = await Promise.all(
+                req.files.map((file) => uploadToCloudinary(file.buffer, file.mimetype))
+            );
         }
 
         await room.save();

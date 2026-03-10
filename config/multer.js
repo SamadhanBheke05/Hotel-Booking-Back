@@ -1,23 +1,15 @@
 import multer from "multer";
-import fs from "fs";
-import path from "path";
+import { v2 as cloudinary } from "cloudinary";
+import dotenv from "dotenv";
+dotenv.config();
 
-// Ensure uploads folder exists
-const uploadDir = "uploads";
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
-  },
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
 });
 
-// Optional but recommended (image only)
+// Use memory storage — files are uploaded to Cloudinary in the controller
+const storage = multer.memoryStorage();
+
 const fileFilter = (req, file, cb) => {
   if (file.mimetype.startsWith("image/")) {
     cb(null, true);
@@ -26,7 +18,26 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-export const upload = multer({
-  storage,
-  fileFilter,
-});
+export const upload = multer({ storage, fileFilter });
+
+/**
+ * Upload a single file buffer to Cloudinary using an unsigned preset.
+ * Returns the secure_url string.
+ */
+export const uploadToCloudinary = (fileBuffer, mimetype) => {
+  const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET || "hotel_unsigned_upload";
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: "hotel_booking",
+        upload_preset: uploadPreset,
+        resource_type: "image",
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result.secure_url);
+      }
+    );
+    stream.end(fileBuffer);
+  });
+};
