@@ -1,14 +1,33 @@
 import Hotel from "../models/hotel.model.js";
+import { uploadToCloudinary } from "../config/multer.js";
 
 const isBlank = (val) => val === undefined || val === null || String(val).trim() === "";
 const parseBoolean = (val) => val === true || String(val).toLowerCase() === "true";
-const getUploadedHotelImage = (req) => {
-    if (req.file?.filename) return req.file.filename;
-    if (req.files?.image?.[0]?.filename) return req.files.image[0].filename;
-    if (req.files?.hotelImage?.[0]?.filename) return req.files.hotelImage[0].filename;
-    if (Array.isArray(req.files) && req.files.length > 0 && req.files[0]?.filename) {
-        return req.files[0].filename;
+
+// Normalize uploaded hotel image from multer + Cloudinary.
+// Returns a Cloudinary secure_url when a file buffer is present.
+const getUploadedHotelImage = async (req) => {
+    const file =
+        req.file ||
+        req.files?.image?.[0] ||
+        req.files?.hotelImage?.[0] ||
+        (Array.isArray(req.files) && req.files.length > 0 ? req.files[0] : null);
+
+    if (!file) return "";
+
+    // Preferred path: memory storage + Cloudinary upload
+    if (file.buffer && file.mimetype) {
+        try {
+            return await uploadToCloudinary(file.buffer, file.mimetype);
+        } catch (err) {
+            console.error("Cloudinary upload failed for hotel image:", err);
+            return "";
+        }
     }
+
+    // Legacy disk storage fallback (should not be used with current setup)
+    if (file.filename) return file.filename;
+
     return "";
 };
 
@@ -79,7 +98,7 @@ const buildHotelPayload = ({ ownerId, body, image }) => {
 export const registerHotel = async (req, res) => {
     try {
         const ownerId = req.user?.id || req.user?._id;
-        const image = getUploadedHotelImage(req);
+        const image = await getUploadedHotelImage(req);
         const { payload, error } = buildHotelPayload({ ownerId, body: req.body, image });
         if (error) {
             return res.status(error.status).json({ message: error.message, success: false });
@@ -130,8 +149,10 @@ export const updateHotel = async (req, res) => {
         }
 
         const { hotelName, hotelAddress, rating, price, amenities,
-            groupBookingAllowed, maxGroupMembers, maxGroupRooms } = req.body;
-        const nextImage = getUploadedHotelImage(req);
+            groupBookingAllowed, maxGroupMembers, maxGroupRooms, imageUrl } = req.body;
+        const nextImage = imageUrl && !isBlank(imageUrl)
+            ? String(imageUrl).trim()
+            : await getUploadedHotelImage(req);
 
         if (hotelName !== undefined) {
             if (isBlank(hotelName)) {
